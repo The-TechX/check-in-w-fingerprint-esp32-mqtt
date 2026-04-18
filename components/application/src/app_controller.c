@@ -163,6 +163,10 @@ void app_controller_start(app_controller_t *controller, runtime_mode_t mode)
 
     ESP_LOGI(TAG, "Network started for mode=%d", (int)mode);
 
+    if (!mqtt_adapter_start(&controller->config, &controller->uc)) {
+        ESP_LOGW(TAG, "MQTT transport not started (continuing with local runtime)");
+    }
+
     if (s_touch_checkin_task == NULL) {
         if (xTaskCreate(touch_checkin_task,
                         "touch_checkin",
