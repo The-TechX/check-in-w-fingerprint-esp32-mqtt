@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "esp_log.h"
-#include "esp_mqtt_client.h"
+#include "mqtt_client.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
