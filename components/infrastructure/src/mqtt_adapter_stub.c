@@ -2,9 +2,10 @@
 
 #include <inttypes.h>
 #include <stdbool.h>
+#include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include "cJSON.h"
 #include "esp_log.h"
 #include "esp_mqtt_client.h"
 #include "esp_timer.h"
@@ -152,35 +153,117 @@ static void publish_heartbeat(void)
     mqtt_publish_json(s_topics.status_heartbeat, payload);
 }
 
+static bool json_extract_string_field(const char *json,
+                                      const char *field,
+                                      char *out,
+                                      size_t out_len)
+{
+    char pattern[64];
+    const char *field_pos;
+    const char *start;
+    const char *end;
+    size_t copy_len;
+
+    if (json == NULL || field == NULL || out == NULL || out_len == 0) {
+        return false;
+    }
+
+    snprintf(pattern, sizeof(pattern), "\"%s\"", field);
+    field_pos = strstr(json, pattern);
+    if (field_pos == NULL) {
+        return false;
+    }
+
+    start = strchr(field_pos + strlen(pattern), ':');
+    if (start == NULL) {
+        return false;
+    }
+
+    start++;
+    while (*start != '\0' && isspace((unsigned char)*start)) {
+        start++;
+    }
+
+    if (*start != '"') {
+        return false;
+    }
+
+    start++;
+    end = strchr(start, '"');
+    if (end == NULL) {
+        return false;
+    }
+
+    copy_len = (size_t)(end - start);
+    if (copy_len >= out_len) {
+        copy_len = out_len - 1;
+    }
+
+    memcpy(out, start, copy_len);
+    out[copy_len] = '\0';
+    return true;
+}
+
+static bool json_extract_uint32_field(const char *json,
+                                      const char *field,
+                                      uint32_t *out_value)
+{
+    char pattern[64];
+    const char *field_pos;
+    const char *start;
+    char *endptr = NULL;
+    unsigned long parsed;
+
+    if (json == NULL || field == NULL || out_value == NULL) {
+        return false;
+    }
+
+    snprintf(pattern, sizeof(pattern), "\"%s\"", field);
+    field_pos = strstr(json, pattern);
+    if (field_pos == NULL) {
+        return false;
+    }
+
+    start = strchr(field_pos + strlen(pattern), ':');
+    if (start == NULL) {
+        return false;
+    }
+
+    start++;
+    while (*start != '\0' && isspace((unsigned char)*start)) {
+        start++;
+    }
+
+    parsed = strtoul(start, &endptr, 10);
+    if (endptr == start) {
+        return false;
+    }
+
+    *out_value = (uint32_t)parsed;
+    return true;
+}
+
 static bool parse_payload_common(const char *payload,
                                  char *out_correlation_id,
                                  size_t correlation_id_len,
                                  uint32_t *out_fingerprint_id)
 {
-    cJSON *root = cJSON_Parse(payload);
-    if (root == NULL) {
+    if (payload == NULL) {
         return false;
     }
 
     if (out_correlation_id != NULL) {
-        cJSON *corr = cJSON_GetObjectItemCaseSensitive(root, "correlationId");
-        if (cJSON_IsString(corr) && corr->valuestring != NULL) {
-            strlcpy(out_correlation_id, corr->valuestring, correlation_id_len);
-        } else {
+        if (!json_extract_string_field(payload, "correlationId", out_correlation_id, correlation_id_len)) {
             out_correlation_id[0] = '\0';
         }
     }
 
     if (out_fingerprint_id != NULL) {
-        cJSON *fingerprint = cJSON_GetObjectItemCaseSensitive(root, "fingerprintId");
-        if (!cJSON_IsNumber(fingerprint)) {
-            cJSON_Delete(root);
+        if (!json_extract_uint32_field(payload, "fingerprintId", out_fingerprint_id)) {
             return false;
         }
-        *out_fingerprint_id = (uint32_t)fingerprint->valuedouble;
     }
 
-    cJSON_Delete(root);
     return true;
 }
 
