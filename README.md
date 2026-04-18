@@ -36,7 +36,7 @@ docker compose up --build
 
 Esto levanta:
 
-- Mosquitto en `localhost:1883`
+- Mosquitto en `localhost:1883` (publicado como `0.0.0.0:1883`)
 - Consola Node + Express en `http://localhost:3000`
 
 Guía paso a paso: [local/docker/README.md](local/docker/README.md).

@@ -14,7 +14,7 @@ docker compose up --build
 
 URLs y puertos:
 
-- Broker MQTT: `localhost:1883`
+- Broker MQTT: `localhost:1883` (bind explícito a `0.0.0.0:1883` en Docker Compose)
 - Consola web: `http://localhost:3000`
 
 ## 2) Topics usados
@@ -65,3 +65,6 @@ Puedes sobreescribir variables del servicio `mqtt-console`:
 - `TOPIC_PREFIX` (default `fingerprint`)
 - `DEVICE_ID` (default `esp32-fingerprint-01`)
 - `PORT` (default `3000`)
+
+
+> Si tu ESP32 está en otra máquina de la misma LAN, usa la IP LAN de tu host Docker (por ejemplo `192.168.1.10`) y abre el puerto 1883 en firewall/router local.

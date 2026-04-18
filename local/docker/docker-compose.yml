@@ -4,7 +4,7 @@ services:
     container_name: fp-mosquitto
     restart: unless-stopped
     ports:
-      - "1883:1883"
+      - "0.0.0.0:1883:1883"
     volumes:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
 
@@ -21,4 +21,4 @@ services:
       DEVICE_ID: esp32-fingerprint-01
       PORT: 3000
     ports:
-      - "3000:3000"
+      - "0.0.0.0:3000:3000"
