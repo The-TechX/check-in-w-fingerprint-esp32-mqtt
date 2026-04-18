@@ -1,0 +1,11 @@
+# ESP-IDF build artifacts
+build/
+sdkconfig
+sdkconfig.old
+managed_components/
+
+# IDE
+.vscode/*.log
+
+# host test artifacts
+out/
