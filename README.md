@@ -24,6 +24,35 @@ Quick commands:
 - `idf.py -p <PORT> flash`
 - `idf.py -p <PORT> monitor`
 
+
+## MQTT local end-to-end (Docker Compose)
+
+Se agregó una capa MQTT de transporte en el firmware y un entorno local reproducible en `local/docker`:
+
+```bash
+cd local/docker
+docker compose up --build
+```
+
+Esto levanta:
+
+- Mosquitto en `localhost:1883` (publicado como `0.0.0.0:1883`)
+- Consola Node + Express en `http://localhost:3000`
+
+Guía paso a paso: [local/docker/README.md](local/docker/README.md).
+
+### Parámetros que debes alinear en el ESP32
+
+Desde la WebUI del dispositivo, asegúrate de configurar:
+
+- `mqtt_host`: IP del host Docker visible desde el ESP32 (ej. `192.168.1.10`)
+- `mqtt_port`: `1883`
+- `topic_prefix`: `fingerprint`
+- `device_id`: `esp32-fingerprint-01`
+- `auth_token`: vacío para broker local sin auth
+
+> `localhost` solo funciona dentro del host o contenedor; el ESP32 debe usar la IP LAN real del broker.
+
 ## Host-side tests (without hardware)
 
 ```bash

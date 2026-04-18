@@ -1,0 +1,13 @@
+{
+  "name": "fingerprint-mqtt-console",
+  "version": "1.0.0",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "mqtt": "^5.14.1"
+  }
+}

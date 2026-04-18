@@ -10,21 +10,25 @@ Assume configurable `topicPrefix` and `deviceId`:
 
 ## Commands
 
-### Start registration
-- Topic: `.../commands/register/start`
-- Payload (JSON):
+All commands are JSON payloads. Minimum suggested envelope:
 
 ```json
 {
-  "correlationId": "uuid",
+  "correlationId": "uuid-or-web-identifier",
   "requestedBy": "server-user-id",
   "timestamp": "2026-04-18T00:00:00Z"
 }
 ```
 
-### Delete fingerprint
-- Topic: `.../commands/fingerprint/delete`
-- Payload:
+### Supported command topics
+
+- `.../commands/register/start`
+- `.../commands/checkin/once`
+- `.../commands/fingerprint/delete` (requires `fingerprintId`)
+- `.../commands/fingerprint/wipe-all`
+- `.../commands/fingerprint/list`
+
+Delete payload example:
 
 ```json
 {
@@ -44,7 +48,7 @@ Assume configurable `topicPrefix` and `deviceId`:
   "eventId": "checkin-1710000000",
   "deviceId": "devkit-01",
   "fingerprintId": 123,
-  "timestamp": "2026-04-18T00:00:00Z",
+  "timestampMs": 1710000000000,
   "source": "sensor"
 }
 ```
@@ -59,7 +63,7 @@ Assume configurable `topicPrefix` and `deviceId`:
   "deviceId": "devkit-01",
   "fingerprintId": 123,
   "status": "success",
-  "timestamp": "2026-04-18T00:00:00Z"
+  "timestampMs": 1710000000000
 }
 ```
 
@@ -70,11 +74,26 @@ Assume configurable `topicPrefix` and `deviceId`:
 {
   "correlationId": "uuid",
   "deviceId": "devkit-01",
-  "operation": "delete-fingerprint",
   "fingerprintId": 123,
-  "status": "success",
-  "code": "OK",
-  "timestamp": "2026-04-18T00:00:00Z"
+  "status": "success|error",
+  "code": "OK|DELETE_FAILED|...",
+  "message": "human readable",
+  "timestampMs": 1710000000000
+}
+```
+
+### Progress event (serial-log equivalent)
+- Topic: `.../events/progress`
+
+```json
+{
+  "deviceId": "devkit-01",
+  "command": "fingerprint/delete",
+  "stage": "start|finish|validate",
+  "status": "progress|success|error",
+  "correlationId": "uuid",
+  "message": "Delete started",
+  "timestampMs": 1710000000000
 }
 ```
 
@@ -86,13 +105,13 @@ Assume configurable `topicPrefix` and `deviceId`:
   "deviceId": "devkit-01",
   "online": true,
   "queueDepth": 3,
-  "timestamp": "2026-04-18T00:00:00Z"
+  "timestampMs": 1710000000000
 }
 ```
 
 ## Delivery and idempotency guidance
 
 - At-least-once publish behavior is expected.
-- Server should deduplicate by `eventId`.
+- Server should deduplicate by `eventId` when available.
 - `correlationId` links command-response operations.
-- Offline queued events must preserve original `eventId` and timestamp.
+- Offline queued events preserve original `eventId` and timestamps.
