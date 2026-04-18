@@ -34,6 +34,7 @@ typedef struct {
     bool (*identify)(uint32_t *out_fingerprint_id);
     bool (*delete_fingerprint)(uint32_t fingerprint_id);
     bool (*wipe_all)(void);
+    bool (*list_fingerprints)(uint32_t *out_ids, size_t max_ids, size_t *out_count);
     bool (*export_template)(uint32_t fingerprint_id, uint8_t *buffer, size_t *in_out_len);
     bool (*import_template)(uint32_t fingerprint_id, const uint8_t *buffer, size_t len);
 } fingerprint_sensor_port_t;

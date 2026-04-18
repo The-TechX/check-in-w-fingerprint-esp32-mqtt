@@ -70,3 +70,16 @@ void test_queue_replay(void)
     assert(ok);
     assert(g_fake.queue_size == 0);
 }
+
+void test_list_registered_ids_from_sensor(void)
+{
+    memset(&g_fake, 0, sizeof(g_fake));
+    use_case_context_t ctx = make_ctx();
+    uint32_t ids[4] = {0};
+    size_t count = 0;
+
+    bool ok = use_case_list_registered_fingerprints(&ctx, ids, 4, &count);
+    assert(ok);
+    assert(count == 1);
+    assert(ids[0] == 7);
+}

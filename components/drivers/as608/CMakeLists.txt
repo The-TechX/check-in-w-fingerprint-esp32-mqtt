@@ -1,5 +1,12 @@
 idf_component_register(
-    SRCS "src/as608_driver_stub.c"
-    INCLUDE_DIRS "include"
-    REQUIRES driver esp_driver_uart esp_timer domain
+    SRCS
+        "src/as608.c"
+        "src/as608_protocol.c"
+        "src/as608_driver_stub.c"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        driver
+        esp_driver_uart
+        domain
 )
