@@ -34,6 +34,17 @@ static bool fake_enroll(uint32_t *out) { if (!g_fake.enroll_ok) return false; *o
 static bool fake_identify(uint32_t *out) { if (!g_fake.identify_ok) return false; *out=7; return true; }
 static bool fake_delete(uint32_t id) { (void)id; return g_fake.delete_ok; }
 static bool fake_wipe(void) { return true; }
+static bool fake_list(uint32_t *out_ids, size_t max_ids, size_t *out_count)
+{
+    if (out_count == NULL) {
+        return false;
+    }
+    if (out_ids != NULL && max_ids > 0) {
+        out_ids[0] = 7;
+    }
+    *out_count = 1;
+    return true;
+}
 static bool fake_export(uint32_t id, uint8_t *b, size_t *l) { (void)id;(void)b;(void)l; return false; }
 static bool fake_import(uint32_t id, const uint8_t *b, size_t l) { (void)id;(void)b;(void)l; return false; }
 static int64_t fake_now(void) { return g_fake.now_ms; }
@@ -43,7 +54,7 @@ static inline use_case_context_t make_ctx(void) {
         .config_repo = {.load=fake_load,.save=fake_save,.factory_reset_config=fake_reset},
         .queue_repo = {.enqueue=fake_enqueue,.peek=fake_peek,.ack=fake_ack,.size=fake_size,.clear=fake_clear},
         .mqtt = {.is_connected=fake_mqtt_connected,.publish_event=fake_publish,.publish_operation_result=fake_publish_op},
-        .sensor = {.enroll=fake_enroll,.identify=fake_identify,.delete_fingerprint=fake_delete,.wipe_all=fake_wipe,.export_template=fake_export,.import_template=fake_import},
+        .sensor = {.enroll=fake_enroll,.identify=fake_identify,.delete_fingerprint=fake_delete,.wipe_all=fake_wipe,.list_fingerprints=fake_list,.export_template=fake_export,.import_template=fake_import},
         .clock = {.now_epoch_ms=fake_now},
         .device_id = "dev-1",
     };

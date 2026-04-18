@@ -35,6 +35,7 @@ static const char *TAG = "as608";
 #define AS608_ACK_BAD_LOCATION  0x0BU
 #define AS608_ACK_DB_FULL       0x0CU
 #define AS608_ACK_DELETE_FAIL   0x10U
+#define AS608_ACK_CLEAR_FAIL    0x11U
 
 static bool as608_slot_in_range(const as608_t *ctx, uint16_t slot)
 {
@@ -84,6 +85,7 @@ static as608_status_t as608_map_ack(uint8_t ack)
     case AS608_ACK_DB_FULL:
         return AS608_ERR_DB_FULL;
     case AS608_ACK_DELETE_FAIL:
+    case AS608_ACK_CLEAR_FAIL:
         return AS608_ERR_DELETE_FAILED;
     default:
         return AS608_ERR_INTERNAL;
@@ -107,6 +109,7 @@ static as608_status_t as608_exec_ack(as608_t *ctx, const uint8_t *cmd, uint16_t 
 
     pkt.payload = ack_payload;
 
+    uart_flush_input(ctx->uart_num);
     st = as608_proto_send_packet(ctx, AS608_PACKET_COMMAND, cmd, cmd_len);
     if (st != AS608_OK) {
         return st;
@@ -449,7 +452,7 @@ as608_status_t as608_empty_database(as608_t *ctx)
     if (st != AS608_OK) {
         return st;
     }
-    st = as608_exec_ack(ctx, cmd, sizeof(cmd), ack, &ack_len, AS608_COMMAND_TIMEOUT_MS);
+    st = as608_exec_ack(ctx, cmd, sizeof(cmd), ack, &ack_len, 3000U);
     as608_unlock(ctx);
     return st;
 }

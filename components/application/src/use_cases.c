@@ -39,6 +39,11 @@ bool use_case_register_fingerprint(use_case_context_t *ctx, const char *correlat
 
 bool use_case_check_in_once(use_case_context_t *ctx)
 {
+    return use_case_check_in_once_with_id(ctx, NULL);
+}
+
+bool use_case_check_in_once_with_id(use_case_context_t *ctx, uint32_t *out_fingerprint_id)
+{
     uint32_t fingerprint_id = 0;
     if (!ctx->sensor.identify(&fingerprint_id)) {
         return false;
@@ -51,9 +56,15 @@ bool use_case_check_in_once(use_case_context_t *ctx)
     compose_event_id(event.event_id, sizeof(event.event_id), "checkin", event.timestamp_epoch_ms);
 
     if (ctx->mqtt.is_connected() && ctx->mqtt.publish_event(&event)) {
+        if (out_fingerprint_id != NULL) {
+            *out_fingerprint_id = fingerprint_id;
+        }
         return true;
     }
 
+    if (out_fingerprint_id != NULL) {
+        *out_fingerprint_id = fingerprint_id;
+    }
     return ctx->queue_repo.enqueue(&event);
 }
 
@@ -90,6 +101,15 @@ bool use_case_wipe_all_fingerprints(use_case_context_t *ctx, const char *correla
         *out_result = result;
     }
     return ok;
+}
+
+bool use_case_list_registered_fingerprints(use_case_context_t *ctx, uint32_t *out_ids, size_t max_ids, size_t *out_count)
+{
+    if ((ctx == NULL) || (ctx->sensor.list_fingerprints == NULL) || (out_count == NULL)) {
+        return false;
+    }
+
+    return ctx->sensor.list_fingerprints(out_ids, max_ids, out_count);
 }
 
 bool use_case_process_pending_queue(use_case_context_t *ctx, size_t max_items_to_flush)

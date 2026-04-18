@@ -1,6 +1,7 @@
 #include "webui/webui_server.h"
 
 #include <ctype.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,7 +14,33 @@ static const char *TAG = "webui";
 static app_controller_t *s_controller = NULL;
 static bool s_sta_switch_in_progress = false;
 
-#define WEBUI_HTML_BUF_LEN 4096
+#define WEBUI_HTML_BUF_LEN 8192
+#define WEBUI_EVENTS_MAX 12
+#define WEBUI_EVENT_TEXT_MAX 120
+#define WEBUI_LIST_PREVIEW_MAX 128
+
+static char s_recent_events[WEBUI_EVENTS_MAX][WEBUI_EVENT_TEXT_MAX];
+static size_t s_recent_events_count = 0;
+
+static void add_event(const char *fmt, ...)
+{
+    char msg[WEBUI_EVENT_TEXT_MAX];
+    va_list ap;
+    size_t dst;
+
+    va_start(ap, fmt);
+    vsnprintf(msg, sizeof(msg), fmt, ap);
+    va_end(ap);
+
+    if (s_recent_events_count < WEBUI_EVENTS_MAX) {
+        dst = s_recent_events_count++;
+    } else {
+        memmove(&s_recent_events[0], &s_recent_events[1], (WEBUI_EVENTS_MAX - 1U) * WEBUI_EVENT_TEXT_MAX);
+        dst = WEBUI_EVENTS_MAX - 1U;
+    }
+
+    strlcpy(s_recent_events[dst], msg, sizeof(s_recent_events[dst]));
+}
 
 static void sta_switch_task(void *arg)
 {
@@ -90,6 +117,8 @@ static esp_err_t read_body(httpd_req_t *req, char *buf, size_t len)
 static esp_err_t render_root_page(httpd_req_t *req, const char *message)
 {
     char ip[20] = "";
+    char events_html[2048] = {0};
+    size_t events_off = 0;
     char *html = malloc(WEBUI_HTML_BUF_LEN);
     bool initialized = s_controller->config.initialized;
     bool softap = network_manager_is_softap_mode();
@@ -98,6 +127,14 @@ static esp_err_t render_root_page(httpd_req_t *req, const char *message)
 
     if (html == NULL) {
         return httpd_resp_send_500(req);
+    }
+
+    for (size_t i = 0; i < s_recent_events_count; ++i) {
+        int written = snprintf(events_html + events_off, sizeof(events_html) - events_off, "<li>%s</li>", s_recent_events[i]);
+        if (written < 0 || (size_t)written >= (sizeof(events_html) - events_off)) {
+            break;
+        }
+        events_off += (size_t)written;
     }
 
     if (softap) {
@@ -145,6 +182,7 @@ static esp_err_t render_root_page(httpd_req_t *req, const char *message)
             "<h2>Demo / Use Cases</h2>"
             "<form method='POST' action='/demo/register'><button type='submit'>Enroll Fingerprint (Demo)</button></form><br>"
             "<form method='POST' action='/demo/checkin'><button type='submit'>Run Check-in Once</button></form><br>"
+            "<form method='POST' action='/demo/list'><button type='submit'>Show Registered IDs</button></form><br>"
             "<form method='POST' action='/demo/delete'>"
             "<label>Fingerprint ID to delete</label><br><input name='fingerprint_id' type='number' min='1' required><br><br>"
             "<button type='submit'>Delete Fingerprint (Demo)</button>"
@@ -152,6 +190,10 @@ static esp_err_t render_root_page(httpd_req_t *req, const char *message)
             "<form method='POST' action='/demo/wipe' onsubmit=\"return confirm('Delete ALL fingerprints?')\">"
             "<button type='submit'>Wipe All Fingerprints (Demo only)</button>"
             "</form>"
+            "<h2>Recent Events</h2>"
+            "<div id='events' style='border:1px solid #ddd; padding:10px; max-width:720px; background:#fafafa;'>"
+            "<ul>%s</ul>"
+            "</div>"
             "</body></html>",
             softap ? "SoftAP" : "WiFi Client (STA)",
             ip,
@@ -160,7 +202,8 @@ static esp_err_t render_root_page(httpd_req_t *req, const char *message)
             s_controller->config.mqtt_broker_host,
             s_controller->config.mqtt_port,
             s_controller->config.mqtt_topic_prefix,
-            s_controller->config.mqtt_auth_token);
+            s_controller->config.mqtt_auth_token,
+            events_html);
     }
 
     send_ret = httpd_resp_send(req, html, HTTPD_RESP_USE_STRLEN);
@@ -327,27 +370,34 @@ static esp_err_t handle_demo_register(httpd_req_t *req)
 
     ok = use_case_register_fingerprint(&s_controller->uc, "web-demo-register", true, &result);
     if (ok) {
-        snprintf(msg, sizeof(msg), "Demo enroll OK. Fingerprint ID = %lu", (unsigned long)result.fingerprint_id);
+        snprintf(msg, sizeof(msg), "Enroll successful. ID=%lu", (unsigned long)result.fingerprint_id);
+        add_event("Enroll successful with ID=%lu", (unsigned long)result.fingerprint_id);
         return render_root_page(req, msg);
     }
+    add_event("Enroll failed");
     return render_root_page(req, "Demo enroll failed.");
 }
 
 static esp_err_t handle_demo_checkin(httpd_req_t *req)
 {
     bool ok;
+    uint32_t fingerprint_id = 0;
+    char msg[96];
 
     if (s_controller == NULL) {
         return httpd_resp_send_500(req);
     }
 
     ESP_LOGI(TAG, "demo/checkin requested");
-    ok = use_case_check_in_once(&s_controller->uc);
+    ok = use_case_check_in_once_with_id(&s_controller->uc, &fingerprint_id);
     if (ok) {
         ESP_LOGI(TAG, "demo/checkin finished OK");
-        return render_root_page(req, "Check-in use case executed.");
+        snprintf(msg, sizeof(msg), "Check-in successful. ID=%lu", (unsigned long)fingerprint_id);
+        add_event("Check-in successful with ID=%lu", (unsigned long)fingerprint_id);
+        return render_root_page(req, msg);
     }
     ESP_LOGW(TAG, "demo/checkin finished with no match/failure");
+    add_event("Check-in failed (no match)");
     return render_root_page(req, "Check-in failed (no fingerprint identified yet).");
 }
 
@@ -395,10 +445,12 @@ static esp_err_t handle_demo_delete(httpd_req_t *req)
     ok = use_case_delete_fingerprint(&s_controller->uc, fingerprint_id, "web-demo-delete", &result);
     if (ok) {
         ESP_LOGI(TAG, "demo/delete success fingerprint_id=%lu", (unsigned long)fingerprint_id);
-        return render_root_page(req, "Fingerprint deleted.");
+        add_event("Delete successful for ID=%lu", (unsigned long)fingerprint_id);
+        return render_root_page(req, "Delete successful.");
     }
 
     ESP_LOGW(TAG, "demo/delete failed fingerprint_id=%lu", (unsigned long)fingerprint_id);
+    add_event("Delete failed for ID=%lu", (unsigned long)fingerprint_id);
     return render_root_page(req, "Delete fingerprint failed.");
 }
 
@@ -414,11 +466,54 @@ static esp_err_t handle_demo_wipe(httpd_req_t *req)
     ok = use_case_wipe_all_fingerprints(&s_controller->uc, "web-demo-wipe", &result);
     if (ok) {
         ESP_LOGI(TAG, "demo/wipe success");
+        add_event("Wipe all successful");
         return render_root_page(req, "All fingerprints removed.");
     }
 
     ESP_LOGW(TAG, "demo/wipe failed");
+    add_event("Wipe all failed");
     return render_root_page(req, "Wipe all failed.");
+}
+
+static esp_err_t handle_demo_list(httpd_req_t *req)
+{
+    uint32_t ids[WEBUI_LIST_PREVIEW_MAX];
+    size_t found = 0;
+    bool ok;
+    char msg[256];
+    char line[128];
+    size_t off = 0;
+
+    if (s_controller == NULL) {
+        return httpd_resp_send_500(req);
+    }
+
+    ok = use_case_list_registered_fingerprints(&s_controller->uc, ids, WEBUI_LIST_PREVIEW_MAX, &found);
+    if (!ok) {
+        add_event("List IDs failed");
+        return render_root_page(req, "Could not read IDs from module.");
+    }
+
+    off += (size_t)snprintf(msg + off, sizeof(msg) - off, "Module templates: %u", (unsigned)found);
+    if (found > 0U) {
+        off += (size_t)snprintf(msg + off, sizeof(msg) - off, ". IDs: ");
+        size_t show = found < WEBUI_LIST_PREVIEW_MAX ? found : WEBUI_LIST_PREVIEW_MAX;
+        for (size_t i = 0; i < show; ++i) {
+            int n = snprintf(line, sizeof(line), "%s%lu", (i == 0U) ? "" : ", ", (unsigned long)ids[i]);
+            if (n <= 0 || (off + (size_t)n) >= sizeof(msg)) {
+                break;
+            }
+            memcpy(msg + off, line, (size_t)n);
+            off += (size_t)n;
+            msg[off] = '\0';
+        }
+        if (found > WEBUI_LIST_PREVIEW_MAX && off < sizeof(msg) - 4U) {
+            strlcpy(msg + off, " ...", sizeof(msg) - off);
+        }
+    }
+
+    add_event("Listed %u template IDs from module", (unsigned)found);
+    return render_root_page(req, msg);
 }
 
 void webui_server_start(app_controller_t *controller)
@@ -475,6 +570,11 @@ void webui_server_start(app_controller_t *controller)
         .method = HTTP_POST,
         .handler = handle_demo_wipe,
     };
+    httpd_uri_t demo_list = {
+        .uri = "/demo/list",
+        .method = HTTP_POST,
+        .handler = handle_demo_list,
+    };
 
     if (httpd_register_uri_handler(server, &root) != ESP_OK ||
         httpd_register_uri_handler(server, &setup_wifi_get) != ESP_OK ||
@@ -483,7 +583,8 @@ void webui_server_start(app_controller_t *controller)
         httpd_register_uri_handler(server, &demo_register) != ESP_OK ||
         httpd_register_uri_handler(server, &demo_checkin) != ESP_OK ||
         httpd_register_uri_handler(server, &demo_delete) != ESP_OK ||
-        httpd_register_uri_handler(server, &demo_wipe) != ESP_OK) {
+        httpd_register_uri_handler(server, &demo_wipe) != ESP_OK ||
+        httpd_register_uri_handler(server, &demo_list) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to register one or more HTTP handlers");
         httpd_stop(server);
         return;
