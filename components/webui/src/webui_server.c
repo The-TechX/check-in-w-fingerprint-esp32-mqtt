@@ -9,6 +9,7 @@
 #include "esp_http_server.h"
 #include "esp_log.h"
 #include "infrastructure/network_manager.h"
+#include "infrastructure/mqtt_adapter.h"
 
 static const char *TAG = "webui";
 static app_controller_t *s_controller = NULL;
@@ -353,9 +354,24 @@ static esp_err_t handle_config_mqtt(httpd_req_t *req)
     }
 
     s_controller->uc.config_repo.save(&s_controller->config);
+
+    if (s_controller->config.mqtt_port == 0) {
+        s_controller->config.mqtt_port = 1883;
+    }
+    if (s_controller->config.device_id[0] == ' ') {
+        strlcpy(s_controller->config.device_id, "esp32-fingerprint-01", sizeof(s_controller->config.device_id));
+    }
+
+    if (!mqtt_adapter_start(&s_controller->config, &s_controller->uc)) {
+        ESP_LOGW(TAG, "MQTT reconnect attempt failed after settings update");
+        free(body);
+        free(copy);
+        return render_root_page(req, "MQTT settings saved, but reconnect failed. Check host/deviceId/topic/network.");
+    }
+
     free(body);
     free(copy);
-    return render_root_page(req, "MQTT settings saved.");
+    return render_root_page(req, "MQTT settings saved and reconnect requested.");
 }
 
 static esp_err_t handle_demo_register(httpd_req_t *req)

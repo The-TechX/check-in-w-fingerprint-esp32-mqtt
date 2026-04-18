@@ -522,8 +522,17 @@ bool mqtt_adapter_start(const device_config_t *cfg, use_case_context_t *ctx)
 {
     esp_mqtt_client_config_t mqtt_cfg = {0};
 
-    if (cfg == NULL || ctx == NULL || cfg->mqtt_broker_host[0] == '\0' || cfg->device_id[0] == '\0' || cfg->mqtt_topic_prefix[0] == '\0') {
-        ESP_LOGW(TAG, "MQTT start skipped due to missing config");
+    if (cfg == NULL || ctx == NULL) {
+        ESP_LOGW(TAG, "MQTT start skipped: cfg/context missing");
+        return false;
+    }
+
+    if (cfg->mqtt_broker_host[0] == '\0' || cfg->device_id[0] == '\0' || cfg->mqtt_topic_prefix[0] == '\0') {
+        ESP_LOGW(TAG,
+                 "MQTT start skipped: host='%s' deviceId='%s' topicPrefix='%s'",
+                 cfg->mqtt_broker_host,
+                 cfg->device_id,
+                 cfg->mqtt_topic_prefix);
         return false;
     }
 
