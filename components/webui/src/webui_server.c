@@ -358,7 +358,7 @@ static esp_err_t handle_config_mqtt(httpd_req_t *req)
     if (s_controller->config.mqtt_port == 0) {
         s_controller->config.mqtt_port = 1883;
     }
-    if (s_controller->config.device_id[0] == ' ') {
+    if (s_controller->config.device_id[0] == '\0') {
         strlcpy(s_controller->config.device_id, "esp32-fingerprint-01", sizeof(s_controller->config.device_id));
     }
 
