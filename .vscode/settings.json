@@ -1,0 +1,9 @@
+{
+  "idf.espIdfPathWin": "",
+  "idf.openOcdConfigs": [
+    "board/esp32-wrover-kit-3.3v.cfg"
+  ],
+  "files.associations": {
+    "*.md": "markdown"
+  }
+}
