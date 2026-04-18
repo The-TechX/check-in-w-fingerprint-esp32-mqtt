@@ -13,21 +13,16 @@ Production-minded v1 scaffold for an **ESP32 DevKit V1** fingerprint check-in te
 
 ## Quick start (VS Code + ESP-IDF extension)
 
-1. Install prerequisites:
-   - ESP-IDF v5.x toolchain
-   - Visual Studio Code
-   - ESP-IDF extension for VS Code
-2. Open this repository in VS Code.
-3. In the ESP-IDF extension:
-   - Select target: `esp32`
-   - Set flash port for your board
-   - Configure project (`idf.py reconfigure`)
-4. Build / flash / monitor:
-   - `idf.py build`
-   - `idf.py -p <PORT> flash`
-   - `idf.py -p <PORT> monitor`
+Follow the complete setup guide (hardware + software prerequisites, IDE setup, and troubleshooting):
 
-See detailed docs in `docs/`.
+- [Getting started](docs/getting-started.md)
+
+Quick commands:
+- `idf.py set-target esp32`
+- `idf.py reconfigure`
+- `idf.py build`
+- `idf.py -p <PORT> flash`
+- `idf.py -p <PORT> monitor`
 
 ## Host-side tests (without hardware)
 
@@ -39,6 +34,7 @@ ctest --test-dir out/host-tests --output-on-failure
 
 ## Docs index
 
+- [Getting started](docs/getting-started.md)
 - [Architecture overview](docs/architecture.md)
 - [MQTT contract](docs/mqtt-contract.md)
 - [Hardware integration (ESP32 + AS608)](docs/hardware-integration.md)
