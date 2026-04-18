@@ -43,6 +43,7 @@ static QueueHandle_t s_command_queue = NULL;
 static use_case_context_t *s_ctx = NULL;
 static device_config_t s_cfg = {0};
 static mqtt_topics_t s_topics = {0};
+static char s_broker_uri[MQTT_TOPIC_MAX] = {0};
 
 static bool starts_with(const char *value, const char *prefix)
 {
@@ -537,8 +538,11 @@ bool mqtt_adapter_start(const device_config_t *cfg, use_case_context_t *ctx)
     }
 
     s_cfg = *cfg;
+    if (s_cfg.mqtt_port == 0) {
+        s_cfg.mqtt_port = 1883;
+    }
     s_ctx = ctx;
-    compose_topics(cfg);
+    compose_topics(&s_cfg);
 
     if (s_command_queue == NULL) {
         s_command_queue = xQueueCreate(MQTT_COMMAND_QUEUE_LEN, sizeof(mqtt_command_msg_t));
@@ -560,13 +564,13 @@ bool mqtt_adapter_start(const device_config_t *cfg, use_case_context_t *ctx)
         }
     }
 
-    mqtt_cfg.broker.address.hostname = cfg->mqtt_broker_host;
-    mqtt_cfg.broker.address.port = cfg->mqtt_port;
-    mqtt_cfg.credentials.client_id = cfg->device_id;
-    mqtt_cfg.credentials.username = cfg->device_id;
+    snprintf(s_broker_uri, sizeof(s_broker_uri), "mqtt://%s:%u", s_cfg.mqtt_broker_host, s_cfg.mqtt_port);
+    mqtt_cfg.broker.address.uri = s_broker_uri;
+    mqtt_cfg.credentials.client_id = s_cfg.device_id;
+    mqtt_cfg.credentials.username = s_cfg.device_id;
 
-    if (cfg->mqtt_auth_token[0] != '\0') {
-        mqtt_cfg.credentials.authentication.password = cfg->mqtt_auth_token;
+    if (s_cfg.mqtt_auth_token[0] != '\0') {
+        mqtt_cfg.credentials.authentication.password = s_cfg.mqtt_auth_token;
     }
 
     if (s_client != NULL) {
@@ -591,11 +595,12 @@ bool mqtt_adapter_start(const device_config_t *cfg, use_case_context_t *ctx)
     }
 
     ESP_LOGI(TAG,
-             "MQTT transport started host=%s port=%u prefix=%s device=%s",
-             cfg->mqtt_broker_host,
-             cfg->mqtt_port,
-             cfg->mqtt_topic_prefix,
-             cfg->device_id);
+             "MQTT transport started uri=%s host=%s port=%u prefix=%s device=%s",
+             s_broker_uri,
+             s_cfg.mqtt_broker_host,
+             s_cfg.mqtt_port,
+             s_cfg.mqtt_topic_prefix,
+             s_cfg.device_id);
     return true;
 }
 
