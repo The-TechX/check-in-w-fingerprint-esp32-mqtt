@@ -74,6 +74,24 @@ bool use_case_delete_fingerprint(use_case_context_t *ctx, uint32_t fingerprint_i
     return ok;
 }
 
+bool use_case_wipe_all_fingerprints(use_case_context_t *ctx, const char *correlation_id, operation_result_t *out_result)
+{
+    bool ok = ctx->sensor.wipe_all();
+    operation_result_t result = {0};
+
+    result.success = ok;
+    result.fingerprint_id = 0;
+    strncpy(result.code, ok ? "OK" : "WIPE_FAILED", sizeof(result.code) - 1);
+
+    if (ctx->mqtt.is_connected()) {
+        ctx->mqtt.publish_operation_result(&result, correlation_id);
+    }
+    if (out_result) {
+        *out_result = result;
+    }
+    return ok;
+}
+
 bool use_case_process_pending_queue(use_case_context_t *ctx, size_t max_items_to_flush)
 {
     if (!ctx->mqtt.is_connected()) {
