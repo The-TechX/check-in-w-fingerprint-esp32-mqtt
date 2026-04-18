@@ -1,9 +1,14 @@
 {
   "idf.espIdfPathWin": "",
   "idf.openOcdConfigs": [
-    "board/esp32-wrover-kit-3.3v.cfg"
+    "interface/ftdi/esp32_devkitj_v1.cfg",
+    "target/esp32.cfg"
   ],
   "files.associations": {
     "*.md": "markdown"
-  }
+  },
+  "idf.currentSetup": "C:\\esp\\v6.0\\esp-idf",
+  "idf.portWin": "COM5",
+  "idf.flashType": "UART",
+  "idf.monitorPort": "COM5"
 }

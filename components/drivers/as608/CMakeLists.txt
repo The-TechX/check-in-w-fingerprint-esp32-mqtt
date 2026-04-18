@@ -1,5 +1,5 @@
 idf_component_register(
     SRCS "src/as608_driver_stub.c"
     INCLUDE_DIRS "include"
-    REQUIRES driver esp_timer domain
+    REQUIRES driver esp_driver_uart esp_timer domain
 )
