@@ -1,24 +1,9 @@
 services:
-  mosquitto:
-    image: eclipse-mosquitto:2
-    container_name: fp-mosquitto
+  websocket-console:
+    build: ./node-server
+    container_name: fp-websocket-console
     restart: unless-stopped
     ports:
-      - "0.0.0.0:1883:1883"
-    volumes:
-      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
-
-  mqtt-console:
-    build:
-      context: ./node-server
-    container_name: fp-mqtt-console
-    restart: unless-stopped
-    depends_on:
-      - mosquitto
+      - "8080:8080"
     environment:
-      MQTT_URL: mqtt://mosquitto:1883
-      TOPIC_PREFIX: fingerprint
-      DEVICE_ID: esp32-fingerprint-01
-      PORT: 3000
-    ports:
-      - "0.0.0.0:3000:3000"
+      PORT: 8080

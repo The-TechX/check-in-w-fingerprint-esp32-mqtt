@@ -31,11 +31,11 @@ void test_checkin_unknown_fingerprint_no_event(void)
     assert(g_fake.queue_size == 0);
 }
 
-void test_delete_publishes_result_when_online(void)
+void test_delete_sends_result_when_online(void)
 {
     memset(&g_fake, 0, sizeof(g_fake));
     g_fake.delete_ok = true;
-    g_fake.mqtt_connected = true;
+    g_fake.ws_connected = true;
 
     use_case_context_t ctx = make_ctx();
     operation_result_t result;
@@ -58,8 +58,8 @@ void test_demo_mode_gating(void)
 void test_queue_replay(void)
 {
     memset(&g_fake, 0, sizeof(g_fake));
-    g_fake.mqtt_connected = true;
-    g_fake.mqtt_publish_ok = true;
+    g_fake.ws_connected = true;
+    g_fake.ws_send_ok = true;
     g_fake.queue_size = 1;
     g_fake.queue[0].type = EVENT_TYPE_CHECKIN;
     strcpy(g_fake.queue[0].event_id, "evt-1");

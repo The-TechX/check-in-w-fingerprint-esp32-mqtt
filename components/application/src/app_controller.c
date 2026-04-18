@@ -3,7 +3,7 @@
 #include <string.h>
 #include "domain/domain_models.h"
 #include "infrastructure/config_repository_nvs.h"
-#include "infrastructure/mqtt_adapter.h"
+#include "infrastructure/websocket_transport.h"
 #include "infrastructure/network_manager.h"
 #include "infrastructure/offline_queue_nvs.h"
 #include "drivers/as608/as608_driver.h"
@@ -109,7 +109,7 @@ static void touch_checkin_task(void *arg)
         matched = use_case_check_in_once(&controller->uc);
 
         if (matched) {
-            ESP_LOGI(TAG, "TOUCH check-in matched and queued/published");
+            ESP_LOGI(TAG, "TOUCH check-in matched and queued/sent");
         } else {
             ESP_LOGI(TAG, "TOUCH check-in attempt finished without match");
         }
@@ -124,9 +124,9 @@ app_controller_t app_controller_create_default(void)
 
     c.uc.config_repo = config_repository_nvs_port();
     c.uc.queue_repo = offline_queue_nvs_port();
-    c.uc.mqtt = mqtt_adapter_port();
+    c.uc.ws = websocket_transport_port();
     c.uc.sensor = as608_driver_port();
-    c.uc.clock = mqtt_adapter_clock_port();
+    c.uc.clock = websocket_transport_clock_port();
     c.network = network_manager_port();
     c.uc.device_id = c.config.device_id;
 
@@ -163,8 +163,8 @@ void app_controller_start(app_controller_t *controller, runtime_mode_t mode)
 
     ESP_LOGI(TAG, "Network started for mode=%d", (int)mode);
 
-    if (!mqtt_adapter_start(&controller->config, &controller->uc)) {
-        ESP_LOGW(TAG, "MQTT transport not started (continuing with local runtime)");
+    if (!websocket_transport_start(&controller->config, &controller->uc)) {
+        ESP_LOGW(TAG, "WebSocket transport not started (continuing with local runtime)");
     }
 
     if (s_touch_checkin_task == NULL) {

@@ -4,9 +4,9 @@
 #include <stdint.h>
 
 #define DOMAIN_DEVICE_ID_MAX 64
-#define DOMAIN_TOPIC_PREFIX_MAX 64
 #define DOMAIN_DISPLAY_NAME_MAX 64
-#define DOMAIN_BROKER_HOST_MAX 128
+#define DOMAIN_ENDPOINT_HOST_MAX 128
+#define DOMAIN_ENDPOINT_PATH_MAX 96
 #define DOMAIN_AUTH_TOKEN_MAX 256
 #define DOMAIN_EVENT_ID_MAX 48
 
@@ -20,14 +20,14 @@ typedef struct {
     bool initialized;
     bool demo_consumed;
     bool tls_enabled;
-    uint16_t mqtt_port;
+    uint16_t websocket_port;
     char wifi_ssid[33];
     char wifi_password[65];
-    char mqtt_broker_host[DOMAIN_BROKER_HOST_MAX];
-    char mqtt_topic_prefix[DOMAIN_TOPIC_PREFIX_MAX];
+    char websocket_host[DOMAIN_ENDPOINT_HOST_MAX];
+    char websocket_path[DOMAIN_ENDPOINT_PATH_MAX];
     char device_id[DOMAIN_DEVICE_ID_MAX];
     char display_name[DOMAIN_DISPLAY_NAME_MAX];
-    char mqtt_auth_token[DOMAIN_AUTH_TOKEN_MAX];
+    char websocket_auth_token[DOMAIN_AUTH_TOKEN_MAX];
 } device_config_t;
 
 typedef struct {
