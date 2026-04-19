@@ -43,11 +43,34 @@ static void add_event(const char *fmt, ...)
 
 static void sta_switch_task(void *arg)
 {
+    const TickType_t deadline = xTaskGetTickCount() + pdMS_TO_TICKS(20000);
+    bool connected = false;
     (void)arg;
     vTaskDelay(pdMS_TO_TICKS(600));
     if (s_controller && !s_controller->network.connect(&s_controller->config)) {
-        ESP_LOGE(TAG, "Background STA switch failed for SSID=%s", s_controller->config.wifi_ssid);
+        ESP_LOGE(TAG, "Background STA switch start failed for SSID=%s", s_controller->config.wifi_ssid);
+        add_event("STA switch failed to start");
+        s_sta_switch_in_progress = false;
+        vTaskDelete(NULL);
+        return;
     }
+
+    while (s_controller && xTaskGetTickCount() < deadline) {
+        if (s_controller->network.is_ready()) {
+            connected = true;
+            break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+
+    if (connected) {
+        add_event("STA connected successfully");
+    } else if (s_controller) {
+        ESP_LOGW(TAG, "STA connect timeout for SSID=%s, falling back to SoftAP", s_controller->config.wifi_ssid);
+        add_event("STA timeout, fallback to SoftAP");
+        s_controller->network.connect(NULL);
+    }
+
     s_sta_switch_in_progress = false;
     vTaskDelete(NULL);
 }
@@ -113,32 +136,45 @@ static esp_err_t render_root_page(httpd_req_t *req, const char *message)
         if (!network_manager_get_sta_ip(ip, sizeof(ip))) strlcpy(ip, "(pending DHCP)", sizeof(ip));
     }
 
+    const char *base_style =
+        "<style>"
+        "body{margin:0;padding:20px;background:#0b1220;color:#e7eefb;font-family:Arial,sans-serif;}"
+        ".wrap{max-width:760px;margin:0 auto;}"
+        ".card{background:#131d30;border:1px solid #2a3958;border-radius:12px;padding:16px;margin-bottom:14px;}"
+        "h1,h2{margin:0 0 10px;} p{color:#b8c5df;} label{display:block;margin:8px 0 4px;color:#a8b7d7;}"
+        "input,select,button{width:100%;padding:9px;border-radius:8px;border:1px solid #2f4368;background:#0f1828;color:#f4f7ff;}"
+        "button{background:#1a7df0;border-color:#1a7df0;cursor:pointer;font-weight:600;}"
+        "button:hover{filter:brightness(1.08);} .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;}"
+        "ul{padding-left:18px;} li{margin:4px 0;color:#cad5ec;} .msg{color:#8ec6ff;font-weight:600;}"
+        "</style>";
+
     if (show_setup) {
         snprintf(html, WEBUI_HTML_BUF_LEN,
-                 "<html><body><h1>Initial Setup</h1><p><b>AP IP:</b> http://%s</p><p style='color:#1565c0;'>%s</p>"
-                 "<form method='POST' action='/setup/wifi'><label>WiFi SSID</label><br><input name='wifi_ssid' required maxlength='32'><br><br>"
-                 "<label>WiFi Password</label><br><input type='password' name='wifi_password' maxlength='64'><br><br>"
-                 "<button type='submit'>Save and Switch to WiFi Client</button></form></body></html>", ip, message ? message : "");
+                 "<html><head>%s</head><body><div class='wrap'><div class='card'><h1>Initial Setup</h1><p><b>AP IP:</b> http://%s</p><p class='msg'>%s</p>"
+                 "<form method='POST' action='/setup/wifi'><label>WiFi SSID</label><input name='wifi_ssid' required maxlength='32'>"
+                 "<label>WiFi Password</label><input type='password' name='wifi_password' maxlength='64'>"
+                 "<button type='submit'>Save and Switch to WiFi Client</button></form></div></div></body></html>",
+                 base_style, ip, message ? message : "");
     } else {
         snprintf(html, WEBUI_HTML_BUF_LEN,
-                 "<html><body><h1>Device Admin</h1><p><b>Current IP:</b> %s</p><p><b>Device:</b> %s</p><p style='color:#1565c0;'>%s</p>"
+                 "<html><head>%s</head><body><div class='wrap'><div class='card'><h1>Device Admin</h1><p><b>Current IP:</b> %s</p><p><b>Device:</b> %s</p><p class='msg'>%s</p>"
                  "<h2>WebSocket Config</h2><form method='POST' action='/config/websocket'>"
-                 "<label>Server Host</label><br><input name='websocket_host' value='%s' maxlength='127'><br><br>"
-                 "<label>Server Port</label><br><input name='websocket_port' value='%u' type='number'><br><br>"
-                 "<label>Path</label><br><input name='websocket_path' value='%s' maxlength='95'><br><br>"
-                 "<label>Auth Token</label><br><input name='websocket_auth_token' value='%s' maxlength='255'><br><br>"
-                 "<label>TLS</label><br><select name='tls_enabled'><option value='0'>ws:// (local/test)</option><option value='1' %s>wss:// (production)</option></select><br><br>"
-                 "<button type='submit'>Save WebSocket Config</button></form>"
-                 "<h2>Demo</h2><form method='POST' action='/demo/register'><button type='submit'>Enroll</button></form><br>"
-                 "<form method='POST' action='/demo/checkin'><button type='submit'>Identify</button></form><br>"
-                 "<form method='POST' action='/demo/list'><button type='submit'>List IDs</button></form><br>"
-                 "<form method='POST' action='/demo/delete'>"
-                 "<label>Fingerprint ID</label><br><input name='fingerprint_id' type='number' min='1' required><br><br>"
-                 "<button type='submit'>Delete ID</button></form><br>"
-                 "<form method='POST' action='/demo/wipe' onsubmit=\"return confirm('Delete all fingerprints?')\">"
-                 "<button type='submit'>Wipe all fingerprints</button></form><br>"
-                 "<h2>Recent Events</h2><ul>%s</ul></body></html>",
-                 ip, s_controller->config.device_id, message ? message : "", s_controller->config.websocket_host,
+                 "<label>Server Host</label><input name='websocket_host' value='%s' maxlength='127'>"
+                 "<label>Server Port</label><input name='websocket_port' value='%u' type='number'>"
+                 "<label>Path</label><input name='websocket_path' value='%s' maxlength='95'>"
+                 "<label>Auth Token</label><input name='websocket_auth_token' value='%s' maxlength='255'>"
+                 "<label>TLS</label><select name='tls_enabled'><option value='0'>ws:// (local/test)</option><option value='1' %s>wss:// (production)</option></select>"
+                 "<button type='submit'>Save WebSocket Config</button></form></div>"
+                 "<div class='card'><h2>Demo</h2><div class='grid'>"
+                 "<form method='POST' action='/demo/register'><button type='submit'>Enroll</button></form>"
+                 "<form method='POST' action='/demo/checkin'><button type='submit'>Identify</button></form>"
+                 "<form method='POST' action='/demo/list'><button type='submit'>List IDs</button></form>"
+                 "<form method='POST' action='/demo/wipe' onsubmit=\"return confirm('Delete all fingerprints?')\"><button type='submit'>Wipe all fingerprints</button></form>"
+                 "</div><form method='POST' action='/demo/delete'>"
+                 "<label>Fingerprint ID</label><input name='fingerprint_id' type='number' min='1' required>"
+                 "<button type='submit'>Delete ID</button></form></div>"
+                 "<div class='card'><h2>Recent Events</h2><ul>%s</ul></div></div></body></html>",
+                 base_style, ip, s_controller->config.device_id, message ? message : "", s_controller->config.websocket_host,
                  s_controller->config.websocket_port, s_controller->config.websocket_path,
                  s_controller->config.websocket_auth_token, s_controller->config.tls_enabled ? "selected" : "", events_html);
     }

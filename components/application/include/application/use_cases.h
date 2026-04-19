@@ -21,3 +21,4 @@ bool use_case_delete_fingerprint(use_case_context_t *ctx, uint32_t fingerprint_i
 bool use_case_wipe_all_fingerprints(use_case_context_t *ctx, const char *correlation_id, operation_result_t *out_result);
 bool use_case_list_registered_fingerprints(use_case_context_t *ctx, uint32_t *out_ids, size_t max_ids, size_t *out_count);
 bool use_case_process_pending_queue(use_case_context_t *ctx, size_t max_items_to_flush);
+bool use_case_is_sensor_busy(void);

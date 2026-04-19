@@ -1,16 +1,56 @@
 #include "application/use_cases.h"
 #include <stdio.h>
 #include <string.h>
+#ifdef ESP_PLATFORM
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#endif
+
+#ifdef ESP_PLATFORM
+static SemaphoreHandle_t s_sensor_mutex = NULL;
+#endif
 
 static void compose_event_id(char *out, size_t out_len, const char *prefix, int64_t ts)
 {
     snprintf(out, out_len, "%s-%lld", prefix, (long long)ts);
 }
 
+static bool sensor_lock(bool wait)
+{
+#ifdef ESP_PLATFORM
+    if (s_sensor_mutex == NULL) {
+        s_sensor_mutex = xSemaphoreCreateMutex();
+    }
+    if (s_sensor_mutex == NULL) {
+        return false;
+    }
+    return xSemaphoreTake(s_sensor_mutex, wait ? portMAX_DELAY : 0) == pdTRUE;
+#else
+    (void)wait;
+    return true;
+#endif
+}
+
+static void sensor_unlock(void)
+{
+#ifdef ESP_PLATFORM
+    if (s_sensor_mutex != NULL) {
+        xSemaphoreGive(s_sensor_mutex);
+    }
+#endif
+}
+
 bool use_case_register_fingerprint(use_case_context_t *ctx, const char *correlation_id, bool initiated_from_web_ui, operation_result_t *out_result)
 {
     uint32_t fingerprint_id = 0;
-    if (!ctx->sensor.enroll(&fingerprint_id)) {
+    bool ok;
+    if ((ctx == NULL) || (ctx->sensor.enroll == NULL) || !sensor_lock(true)) {
+        return false;
+    }
+
+    ok = ctx->sensor.enroll(&fingerprint_id);
+    sensor_unlock();
+    if (!ok) {
         if (out_result) {
             *out_result = (operation_result_t){ .success = false, .fingerprint_id = 0 };
             strncpy(out_result->code, "ENROLL_FAILED", sizeof(out_result->code) - 1);
@@ -45,7 +85,13 @@ bool use_case_check_in_once(use_case_context_t *ctx)
 bool use_case_check_in_once_with_id(use_case_context_t *ctx, uint32_t *out_fingerprint_id)
 {
     uint32_t fingerprint_id = 0;
-    if (!ctx->sensor.identify(&fingerprint_id)) {
+    if ((ctx == NULL) || (ctx->sensor.identify == NULL) || !sensor_lock(false)) {
+        return false;
+    }
+
+    bool identified = ctx->sensor.identify(&fingerprint_id);
+    sensor_unlock();
+    if (!identified) {
         return false;
     }
 
@@ -70,7 +116,11 @@ bool use_case_check_in_once_with_id(use_case_context_t *ctx, uint32_t *out_finge
 
 bool use_case_delete_fingerprint(use_case_context_t *ctx, uint32_t fingerprint_id, const char *correlation_id, operation_result_t *out_result)
 {
+    if ((ctx == NULL) || (ctx->sensor.delete_fingerprint == NULL) || !sensor_lock(true)) {
+        return false;
+    }
     bool ok = ctx->sensor.delete_fingerprint(fingerprint_id);
+    sensor_unlock();
     operation_result_t result = {0};
     result.success = ok;
     result.fingerprint_id = fingerprint_id;
@@ -87,7 +137,11 @@ bool use_case_delete_fingerprint(use_case_context_t *ctx, uint32_t fingerprint_i
 
 bool use_case_wipe_all_fingerprints(use_case_context_t *ctx, const char *correlation_id, operation_result_t *out_result)
 {
+    if ((ctx == NULL) || (ctx->sensor.wipe_all == NULL) || !sensor_lock(true)) {
+        return false;
+    }
     bool ok = ctx->sensor.wipe_all();
+    sensor_unlock();
     operation_result_t result = {0};
 
     result.success = ok;
@@ -105,11 +159,12 @@ bool use_case_wipe_all_fingerprints(use_case_context_t *ctx, const char *correla
 
 bool use_case_list_registered_fingerprints(use_case_context_t *ctx, uint32_t *out_ids, size_t max_ids, size_t *out_count)
 {
-    if ((ctx == NULL) || (ctx->sensor.list_fingerprints == NULL) || (out_count == NULL)) {
+    if ((ctx == NULL) || (ctx->sensor.list_fingerprints == NULL) || (out_count == NULL) || !sensor_lock(true)) {
         return false;
     }
-
-    return ctx->sensor.list_fingerprints(out_ids, max_ids, out_count);
+    bool ok = ctx->sensor.list_fingerprints(out_ids, max_ids, out_count);
+    sensor_unlock();
+    return ok;
 }
 
 bool use_case_process_pending_queue(use_case_context_t *ctx, size_t max_items_to_flush)
@@ -129,4 +184,13 @@ bool use_case_process_pending_queue(use_case_context_t *ctx, size_t max_items_to
     }
 
     return true;
+}
+
+bool use_case_is_sensor_busy(void)
+{
+    if (!sensor_lock(false)) {
+        return true;
+    }
+    sensor_unlock();
+    return false;
 }

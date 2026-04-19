@@ -30,6 +30,7 @@ typedef struct {
 } network_port_t;
 
 typedef struct {
+    void (*set_enroll_progress_callback)(void (*cb)(const char *step, void *user_ctx), void *user_ctx);
     bool (*enroll)(uint32_t *out_fingerprint_id);
     bool (*identify)(uint32_t *out_fingerprint_id);
     bool (*delete_fingerprint)(uint32_t fingerprint_id);

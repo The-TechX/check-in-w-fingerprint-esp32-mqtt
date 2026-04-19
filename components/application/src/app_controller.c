@@ -16,7 +16,9 @@
 static const char *TAG = "app_controller";
 
 #define TOUCH_GPIO GPIO_NUM_4
-#define TOUCH_ACTIVE_LOW 1
+// AS608 TOUCH (GPIO4) observed behavior: no finger = 0V, finger on sensor = 3.3V.
+// Therefore default trigger is active-high (rising edge).
+#define TOUCH_ACTIVE_LOW 0
 #define TOUCH_CHECKIN_TASK_STACK 4096
 #define TOUCH_CHECKIN_TASK_PRIO 5
 #define TOUCH_DEBOUNCE_MS 120
@@ -104,6 +106,11 @@ static void touch_checkin_task(void *arg)
             continue;
         }
         last_attempt_tick = now;
+
+        if (use_case_is_sensor_busy()) {
+            ESP_LOGI(TAG, "TOUCH ignored: sensor busy (enroll/other op in progress)");
+            continue;
+        }
 
         ESP_LOGI(TAG, "TOUCH detected, running check-in attempt");
         matched = use_case_check_in_once(&controller->uc);

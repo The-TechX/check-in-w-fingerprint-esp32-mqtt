@@ -9,6 +9,7 @@
 #include "freertos/FreeRTOS.h"
 
 #define WS_MSG_MAX 512
+#define WS_LIST_IDS_MAX 32
 static const char *TAG = "ws_transport";
 
 static esp_websocket_client_handle_t s_client = NULL;
@@ -16,6 +17,7 @@ static bool s_connected = false;
 static bool s_busy = false;
 static device_config_t s_cfg = {0};
 static use_case_context_t *s_ctx = NULL;
+static char s_active_enroll_request_id[64] = {0};
 
 static int64_t now_epoch_ms_impl(void) { return esp_timer_get_time() / 1000; }
 static bool is_connected_impl(void) { return s_connected; }
@@ -67,6 +69,54 @@ static void send_validation_error(const char *request_id, const char *message)
     send_json(json);
 }
 
+static void send_enroll_step_event(const char *request_id, const char *step, const char *hint)
+{
+    char json[WS_MSG_MAX];
+    snprintf(json, sizeof(json),
+             "{\"type\":\"event\",\"event\":\"enroll_progress\",\"requestId\":\"%s\",\"deviceId\":\"%s\",\"timestamp\":%lld,\"payload\":{\"step\":\"%s\",\"hint\":\"%s\"}}",
+             request_id ? request_id : "", s_cfg.device_id, (long long)now_epoch_ms_impl(),
+             step ? step : "unknown", hint ? hint : "");
+    send_json(json);
+}
+
+static void enroll_progress_callback(const char *step, void *user_ctx)
+{
+    (void)user_ctx;
+    if (step == NULL || s_active_enroll_request_id[0] == '\0') return;
+
+    if (strcmp(step, "place_finger_first") == 0) {
+        send_enroll_step_event(s_active_enroll_request_id, step, "Coloca la huella para primera lectura");
+    } else if (strcmp(step, "remove_finger") == 0) {
+        send_enroll_step_event(s_active_enroll_request_id, step, "Retira la huella del sensor");
+    } else if (strcmp(step, "place_finger_second") == 0) {
+        send_enroll_step_event(s_active_enroll_request_id, step, "Coloca la huella para segunda lectura");
+    } else if (strcmp(step, "operation_success") == 0) {
+        send_enroll_step_event(s_active_enroll_request_id, step, "Registro completado");
+    } else if (strcmp(step, "operation_failed") == 0) {
+        send_enroll_step_event(s_active_enroll_request_id, step, "Registro fallido");
+    } else {
+        send_enroll_step_event(s_active_enroll_request_id, step, "");
+    }
+}
+
+static void send_list_response(const char *request_id, const uint32_t *ids, size_t count, bool truncated)
+{
+    char ids_buf[WS_MSG_MAX / 2] = {0};
+    size_t off = 0;
+    for (size_t i = 0; i < count; ++i) {
+        int written = snprintf(ids_buf + off, sizeof(ids_buf) - off, "%s%lu", i ? "," : "", (unsigned long)ids[i]);
+        if (written < 0 || (size_t)written >= (sizeof(ids_buf) - off)) break;
+        off += (size_t)written;
+    }
+
+    char json[WS_MSG_MAX];
+    snprintf(json, sizeof(json),
+             "{\"type\":\"response\",\"event\":\"fingerprints_list\",\"requestId\":\"%s\",\"deviceId\":\"%s\",\"timestamp\":%lld,\"payload\":{\"count\":%u,\"ids\":[%s],\"truncated\":%s}}",
+             request_id ? request_id : "", s_cfg.device_id, (long long)now_epoch_ms_impl(), (unsigned)count, ids_buf,
+             truncated ? "true" : "false");
+    send_json(json);
+}
+
 static void handle_command(const char *command, const char *request_id, const char *payload)
 {
     if (!s_ctx || !command) return;
@@ -87,7 +137,15 @@ static void handle_command(const char *command, const char *request_id, const ch
     s_busy = true;
     if (strcmp(command, "enroll_fingerprint") == 0) {
         operation_result_t result = {0};
+        if (s_ctx->sensor.set_enroll_progress_callback != NULL) {
+            strlcpy(s_active_enroll_request_id, request_id ? request_id : "", sizeof(s_active_enroll_request_id));
+            s_ctx->sensor.set_enroll_progress_callback(enroll_progress_callback, NULL);
+        }
         bool ok = use_case_register_fingerprint(s_ctx, request_id, false, &result);
+        if (s_ctx->sensor.set_enroll_progress_callback != NULL) {
+            s_ctx->sensor.set_enroll_progress_callback(NULL, NULL);
+            s_active_enroll_request_id[0] = '\0';
+        }
         if (!ok) strncpy(result.code, "ENROLL_FAILED", sizeof(result.code) - 1);
         send_operation_result_impl(&result, request_id);
     } else if (strcmp(command, "identify_fingerprint") == 0) {
@@ -106,6 +164,15 @@ static void handle_command(const char *command, const char *request_id, const ch
         operation_result_t result = {0};
         use_case_wipe_all_fingerprints(s_ctx, request_id, &result);
         send_operation_result_impl(&result, request_id);
+    } else if (strcmp(command, "list") == 0 || strcmp(command, "list_fingerprints") == 0) {
+        uint32_t ids[WS_LIST_IDS_MAX] = {0};
+        size_t found = 0;
+        bool ok = use_case_list_registered_fingerprints(s_ctx, ids, WS_LIST_IDS_MAX, &found);
+        if (!ok) {
+            send_validation_error(request_id, "List fingerprints failed");
+        } else {
+            send_list_response(request_id, ids, found, false);
+        }
     } else {
         send_validation_error(request_id, "Unsupported command");
     }

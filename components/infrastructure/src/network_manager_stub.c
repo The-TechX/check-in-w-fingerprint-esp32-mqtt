@@ -110,7 +110,6 @@ static bool start_sta(const device_config_t *cfg)
 {
     wifi_config_t sta_cfg = {
         .sta = {
-            .threshold.authmode = WIFI_AUTH_WPA2_PSK,
             .pmf_cfg = {
                 .capable = true,
                 .required = false,
