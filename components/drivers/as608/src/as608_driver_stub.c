@@ -7,6 +7,15 @@ static const char *TAG = "as608_driver";
 
 static as608_t s_ctx;
 static bool s_ctx_ready;
+static void (*s_enroll_progress_cb)(const char *step, void *user_ctx) = NULL;
+static void *s_enroll_progress_user = NULL;
+
+static void notify_enroll_progress(const char *step)
+{
+    if (s_enroll_progress_cb != NULL) {
+        s_enroll_progress_cb(step, s_enroll_progress_user);
+    }
+}
 
 static bool ensure_ctx(void)
 {
@@ -37,14 +46,45 @@ static bool enroll_impl(uint32_t *out_fingerprint_id)
         return false;
     }
 
-    st = as608_enroll(&s_ctx, UINT16_MAX, 10000U, &slot);
+    st = as608_find_free_slot(&s_ctx, &slot);
     if (st != AS608_OK) {
-        ESP_LOGW(TAG, "enroll failed: %s", as608_status_str(st));
+        ESP_LOGW(TAG, "enroll failed (free slot): %s", as608_status_str(st));
+        notify_enroll_progress("operation_failed");
         return false;
     }
 
+    notify_enroll_progress("place_finger_first");
+    st = as608_wait_finger_present(&s_ctx, 10000U, 200U);
+    if (st != AS608_OK) goto enroll_fail;
+
+    st = as608_image_to_char(&s_ctx, 1U);
+    if (st != AS608_OK) goto enroll_fail;
+
+    notify_enroll_progress("remove_finger");
+    st = as608_wait_finger_removed(&s_ctx, 10000U, 200U);
+    if (st != AS608_OK) goto enroll_fail;
+
+    notify_enroll_progress("place_finger_second");
+    st = as608_wait_finger_present(&s_ctx, 10000U, 200U);
+    if (st != AS608_OK) goto enroll_fail;
+
+    st = as608_image_to_char(&s_ctx, 2U);
+    if (st != AS608_OK) goto enroll_fail;
+
+    st = as608_create_model(&s_ctx);
+    if (st != AS608_OK) goto enroll_fail;
+
+    st = as608_store_model(&s_ctx, 1U, slot);
+    if (st != AS608_OK) goto enroll_fail;
+
     *out_fingerprint_id = (uint32_t)slot + 1U;
+    notify_enroll_progress("operation_success");
     return true;
+
+enroll_fail:
+    ESP_LOGW(TAG, "enroll failed: %s", as608_status_str(st));
+    notify_enroll_progress("operation_failed");
+    return false;
 }
 
 static bool identify_impl(uint32_t *out_fingerprint_id)
@@ -155,9 +195,16 @@ static bool import_template_impl(uint32_t fingerprint_id, const uint8_t *buffer,
            as608_import_template(&s_ctx, (uint16_t)(fingerprint_id - 1U), buffer, len) == AS608_OK;
 }
 
+static void set_enroll_progress_callback_impl(void (*cb)(const char *step, void *user_ctx), void *user_ctx)
+{
+    s_enroll_progress_cb = cb;
+    s_enroll_progress_user = user_ctx;
+}
+
 fingerprint_sensor_port_t as608_driver_port(void)
 {
     return (fingerprint_sensor_port_t){
+        .set_enroll_progress_callback = set_enroll_progress_callback_impl,
         .enroll = enroll_impl,
         .identify = identify_impl,
         .delete_fingerprint = delete_impl,
