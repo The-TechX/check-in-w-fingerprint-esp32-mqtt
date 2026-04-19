@@ -9,6 +9,7 @@
 #include "freertos/FreeRTOS.h"
 
 #define WS_MSG_MAX 512
+#define WS_LIST_IDS_MAX 32
 static const char *TAG = "ws_transport";
 
 static esp_websocket_client_handle_t s_client = NULL;
@@ -67,6 +68,24 @@ static void send_validation_error(const char *request_id, const char *message)
     send_json(json);
 }
 
+static void send_list_response(const char *request_id, const uint32_t *ids, size_t count, bool truncated)
+{
+    char ids_buf[WS_MSG_MAX / 2] = {0};
+    size_t off = 0;
+    for (size_t i = 0; i < count; ++i) {
+        int written = snprintf(ids_buf + off, sizeof(ids_buf) - off, "%s%lu", i ? "," : "", (unsigned long)ids[i]);
+        if (written < 0 || (size_t)written >= (sizeof(ids_buf) - off)) break;
+        off += (size_t)written;
+    }
+
+    char json[WS_MSG_MAX];
+    snprintf(json, sizeof(json),
+             "{\"type\":\"response\",\"event\":\"fingerprints_list\",\"requestId\":\"%s\",\"deviceId\":\"%s\",\"timestamp\":%lld,\"payload\":{\"count\":%u,\"ids\":[%s],\"truncated\":%s}}",
+             request_id ? request_id : "", s_cfg.device_id, (long long)now_epoch_ms_impl(), (unsigned)count, ids_buf,
+             truncated ? "true" : "false");
+    send_json(json);
+}
+
 static void handle_command(const char *command, const char *request_id, const char *payload)
 {
     if (!s_ctx || !command) return;
@@ -106,6 +125,15 @@ static void handle_command(const char *command, const char *request_id, const ch
         operation_result_t result = {0};
         use_case_wipe_all_fingerprints(s_ctx, request_id, &result);
         send_operation_result_impl(&result, request_id);
+    } else if (strcmp(command, "list") == 0 || strcmp(command, "list_fingerprints") == 0) {
+        uint32_t ids[WS_LIST_IDS_MAX] = {0};
+        size_t found = 0;
+        bool ok = use_case_list_registered_fingerprints(s_ctx, ids, WS_LIST_IDS_MAX, &found);
+        if (!ok) {
+            send_validation_error(request_id, "List fingerprints failed");
+        } else {
+            send_list_response(request_id, ids, found, false);
+        }
     } else {
         send_validation_error(request_id, "Unsupported command");
     }

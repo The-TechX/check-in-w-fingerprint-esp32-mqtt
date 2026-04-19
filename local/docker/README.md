@@ -14,7 +14,7 @@ Open `http://localhost:8080`.
 - **Real-time terminal log** with timestamps, direction tags (`OUT`, `IN`, `SYS`, `ERR`) and serialized payloads.
 - **Action buttons without redirects** (`enroll_fingerprint`, `identify_fingerprint`, `healthcheck`, `wipe_all_fingerprints`).
 - **Delete by fingerprint ID** from inline input with client-side validation.
-- **Dedicated fingerprints page (`/fingerprints`)** with refreshable table for IDs observed by the local console.
+- **Dedicated fingerprints page (`/fingerprints`)** with refresh que dispara el comando `list` al ESP32 y renderiza la tabla con la respuesta (`count` + `ids`).
 
 ## Endpoints
 
@@ -23,6 +23,7 @@ Open `http://localhost:8080`.
 - Command API: `POST /api/command`
 - Delete command API: `POST /api/command/delete`
 - Fingerprints table API: `GET /api/fingerprints`
+- Refresh fingerprints from device: `POST /api/fingerprints/refresh` (envía `list`)
 
 ## Useful ESP32 settings
 

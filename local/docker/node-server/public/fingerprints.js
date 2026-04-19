@@ -21,7 +21,13 @@ function renderRows(rows) {
 }
 
 async function loadFingerprints() {
-  const res = await fetch('/api/fingerprints');
+  const res = await fetch('/api/fingerprints/refresh', { method: 'POST' });
+  if (!res.ok) {
+    const fallback = await fetch('/api/fingerprints');
+    const fallbackData = await fallback.json();
+    renderRows(fallbackData.fingerprints || []);
+    return;
+  }
   const data = await res.json();
   renderRows(data.fingerprints || []);
 }

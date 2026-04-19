@@ -20,11 +20,12 @@
 - `ping`
 - `healthcheck`
 - `delete_fingerprint`
+- `list` (alias soportado: `list_fingerprints`)
 
 ## ESP32 -> Servidor
 
 - Eventos: `operation_started`, `place_finger`, `remove_finger`, `place_finger_again`, `fingerprint_enrolled`, `fingerprint_match`, `fingerprint_not_found`, `status_report`, `pong`.
-- Respuestas: `operation_result`.
+- Respuestas: `operation_result`, `fingerprints_list` con `payload.count` y `payload.ids`.
 - Errores: `validation_error`, `sensor_error`, `busy`.
 
 ## Correlación

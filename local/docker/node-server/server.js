@@ -116,9 +116,21 @@ function createServerApp() {
     const msg = { type: 'command', command, requestId, timestamp: nowIso(), payload };
     if (!sendToDevice(msg)) return { ok: false, status: 409, error: 'device is not connected' };
 
-    pending.set(requestId, { command, sentAt: Date.now() });
+    pending.set(requestId, { command, sentAt: Date.now(), waiters: [] });
     addEvent('OUT', 'command', command, msg);
     return { ok: true, status: 200, requestId };
+  }
+
+  function awaitCommandResponse(requestId, timeoutMs = 5000) {
+    const entry = pending.get(requestId);
+    if (!entry) return Promise.reject(new Error('request is not pending'));
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('response timeout')), timeoutMs);
+      entry.waiters.push((message) => {
+        clearTimeout(timer);
+        resolve(message);
+      });
+    });
   }
 
   app.get('/health', (_req, res) => res.json({ ok: true, socketStatus: socketState(), deviceConnected: socketState() === 'open' }));
@@ -140,6 +152,32 @@ function createServerApp() {
   app.get('/api/fingerprints', (_req, res) => {
     const rows = Array.from(fingerprints.values()).sort((a, b) => a.fingerprintId - b.fingerprintId);
     res.json({ ok: true, count: rows.length, fingerprints: rows });
+  });
+
+  app.post('/api/fingerprints/refresh', async (_req, res) => {
+    const result = dispatchCommand({ command: 'list', payload: {} });
+    if (!result.ok) return res.status(result.status).json(result);
+
+    try {
+      const message = await awaitCommandResponse(result.requestId, 6000);
+      const payload = message.payload && typeof message.payload === 'object' ? message.payload : {};
+      const ids = Array.isArray(payload.ids) ? payload.ids : [];
+      const rows = ids
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0)
+        .map((fingerprintId) => ({ fingerprintId, source: 'list', lastSeenAt: nowIso() }));
+      fingerprints.clear();
+      rows.forEach((row) => fingerprints.set(row.fingerprintId, row));
+      return res.json({
+        ok: true,
+        count: Number(payload.count ?? rows.length),
+        fingerprints: rows,
+        truncated: Boolean(payload.truncated),
+      });
+    } catch (error) {
+      addEvent('ERR', 'error', 'fingerprints_refresh_failed', { message: error.message });
+      return res.status(504).json({ ok: false, error: error.message });
+    }
   });
 
   app.post('/api/command', (req, res) => {
@@ -220,7 +258,12 @@ function createServerApp() {
         msg = { type: 'invalid_json', raw: raw.toString() };
       }
 
-      if (msg.requestId && pending.has(msg.requestId)) pending.delete(msg.requestId);
+      if (msg.requestId && pending.has(msg.requestId)) {
+        const entry = pending.get(msg.requestId);
+        const waiters = entry?.waiters || [];
+        waiters.forEach((notify) => notify(msg));
+        pending.delete(msg.requestId);
+      }
       updateFingerprintCacheFromMessage(msg);
       const direction = msg.type === 'error' ? 'ERR' : 'IN';
       const eventName = msg.event || msg.type || 'device_message';
