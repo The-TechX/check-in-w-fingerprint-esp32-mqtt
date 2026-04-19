@@ -8,7 +8,7 @@
 typedef struct {
     config_repository_port_t config_repo;
     queue_repository_port_t queue_repo;
-    mqtt_port_t mqtt;
+    websocket_transport_port_t ws;
     fingerprint_sensor_port_t sensor;
     clock_port_t clock;
     const char *device_id;

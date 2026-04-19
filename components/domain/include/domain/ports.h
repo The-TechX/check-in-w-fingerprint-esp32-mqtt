@@ -20,9 +20,9 @@ typedef struct {
 
 typedef struct {
     bool (*is_connected)(void);
-    bool (*publish_event)(const queue_item_t *item);
-    bool (*publish_operation_result)(const operation_result_t *result, const char *correlation_id);
-} mqtt_port_t;
+    bool (*emit_event)(const queue_item_t *item);
+    bool (*send_operation_result)(const operation_result_t *result, const char *correlation_id);
+} websocket_transport_port_t;
 
 typedef struct {
     bool (*connect)(const device_config_t *cfg);
