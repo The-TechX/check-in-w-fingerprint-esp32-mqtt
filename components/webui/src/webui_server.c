@@ -43,11 +43,34 @@ static void add_event(const char *fmt, ...)
 
 static void sta_switch_task(void *arg)
 {
+    const TickType_t deadline = xTaskGetTickCount() + pdMS_TO_TICKS(20000);
+    bool connected = false;
     (void)arg;
     vTaskDelay(pdMS_TO_TICKS(600));
     if (s_controller && !s_controller->network.connect(&s_controller->config)) {
-        ESP_LOGE(TAG, "Background STA switch failed for SSID=%s", s_controller->config.wifi_ssid);
+        ESP_LOGE(TAG, "Background STA switch start failed for SSID=%s", s_controller->config.wifi_ssid);
+        add_event("STA switch failed to start");
+        s_sta_switch_in_progress = false;
+        vTaskDelete(NULL);
+        return;
     }
+
+    while (s_controller && xTaskGetTickCount() < deadline) {
+        if (s_controller->network.is_ready()) {
+            connected = true;
+            break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+
+    if (connected) {
+        add_event("STA connected successfully");
+    } else if (s_controller) {
+        ESP_LOGW(TAG, "STA connect timeout for SSID=%s, falling back to SoftAP", s_controller->config.wifi_ssid);
+        add_event("STA timeout, fallback to SoftAP");
+        s_controller->network.connect(NULL);
+    }
+
     s_sta_switch_in_progress = false;
     vTaskDelete(NULL);
 }
