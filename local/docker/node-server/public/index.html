@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ESP32 WebSocket Debug Console</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <main class="layout">
+    <header class="topbar">
+      <div>
+        <h1>ESP32 WebSocket Console</h1>
+        <p class="muted">Real-time local debugging</p>
+      </div>
+      <div class="status-group">
+        <span id="socket-indicator" class="badge connecting">connecting</span>
+        <span id="event-counter" class="badge neutral">0 events</span>
+        <a class="link" href="/fingerprints">Fingerprints</a>
+      </div>
+    </header>
+
+    <section class="panel actions">
+      <h2>Actions</h2>
+      <div class="grid">
+        <button data-command="enroll_fingerprint">Enroll fingerprint</button>
+        <button data-command="identify_fingerprint">Identify / check-in</button>
+        <button data-command="healthcheck">Healthcheck</button>
+        <button data-command="wipe_all_fingerprints" class="danger">Wipe all</button>
+      </div>
+      <form id="delete-form" class="inline-form">
+        <label for="fingerprint-id">Delete fingerprint ID</label>
+        <input id="fingerprint-id" type="number" min="1" placeholder="e.g. 7" />
+        <button type="submit">Delete fingerprint</button>
+      </form>
+      <div class="toolbar">
+        <button id="clear-log" class="ghost">Clear console</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Live log</h2>
+      <pre id="log" class="console" aria-live="polite"></pre>
+    </section>
+  </main>
+  <script src="/assets/console.js"></script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Registered Fingerprints</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <main class="layout narrow">
+    <header class="topbar">
+      <div>
+        <h1>Known fingerprints</h1>
+        <p class="muted">State observed by the local WebSocket console</p>
+      </div>
+      <div class="status-group">
+        <a class="link" href="/">Back to console</a>
+        <button id="refresh-table" class="ghost">Refresh</button>
+      </div>
+    </header>
+
+    <section class="panel">
+      <table id="fingerprints-table" class="table hidden">
+        <thead>
+          <tr>
+            <th>Fingerprint ID</th>
+            <th>Source</th>
+            <th>Last seen</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p id="empty-state" class="empty">No fingerprints available yet.</p>
+    </section>
+  </main>
+  <script src="/assets/fingerprints.js"></script>
+</body>
+</html>

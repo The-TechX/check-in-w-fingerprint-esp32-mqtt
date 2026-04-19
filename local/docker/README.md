@@ -8,12 +8,21 @@ docker compose up --build
 
 Open `http://localhost:8080`.
 
-## What it provides
+## Updated UX
 
-- Express SSR page to send commands manually.
-- WebSocket endpoint for the ESP32 at `ws://<host>:8080/device`.
-- Event log for messages from/to the device.
-- Quick actions for enroll, identify, delete by ID, and wipe-all.
+- **Main console (`/`)** in dark mode with live status (`connecting`, `open`, `closed`, `error`).
+- **Real-time terminal log** with timestamps, direction tags (`OUT`, `IN`, `SYS`, `ERR`) and serialized payloads.
+- **Action buttons without redirects** (`enroll_fingerprint`, `identify_fingerprint`, `healthcheck`, `wipe_all_fingerprints`).
+- **Delete by fingerprint ID** from inline input with client-side validation.
+- **Dedicated fingerprints page (`/fingerprints`)** with refreshable table for IDs observed by the local console.
+
+## Endpoints
+
+- ESP32 WebSocket endpoint: `ws://<host>:8080/device`
+- Browser live console channel: `ws://<host>:8080/console`
+- Command API: `POST /api/command`
+- Delete command API: `POST /api/command/delete`
+- Fingerprints table API: `GET /api/fingerprints`
 
 ## Useful ESP32 settings
 
