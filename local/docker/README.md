@@ -13,6 +13,7 @@ Open `http://localhost:8080`.
 - Express SSR page to send commands manually.
 - WebSocket endpoint for the ESP32 at `ws://<host>:8080/device`.
 - Event log for messages from/to the device.
+- Quick actions for enroll, identify, delete by ID, and wipe-all.
 
 ## Useful ESP32 settings
 

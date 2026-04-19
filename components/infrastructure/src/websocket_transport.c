@@ -102,6 +102,10 @@ static void handle_command(const char *command, const char *request_id, const ch
         operation_result_t result = {0};
         use_case_delete_fingerprint(s_ctx, id, request_id, &result);
         send_operation_result_impl(&result, request_id);
+    } else if (strcmp(command, "wipe_all_fingerprints") == 0) {
+        operation_result_t result = {0};
+        use_case_wipe_all_fingerprints(s_ctx, request_id, &result);
+        send_operation_result_impl(&result, request_id);
     } else {
         send_validation_error(request_id, "Unsupported command");
     }
@@ -111,16 +115,23 @@ static void handle_command(const char *command, const char *request_id, const ch
 static void parse_and_dispatch(const char *msg)
 {
     if (!msg) return;
-    char command[64] = {0}, request_id[64] = {0};
+    char command[64] = {0}, request_id[64] = {0}, payload[32] = {0};
     const char *command_tag = strstr(msg, "\"command\":\"");
     const char *request_tag = strstr(msg, "\"requestId\":\"");
+    const char *fingerprint_tag = strstr(msg, "\"fingerprintId\":");
     if (!command_tag) {
         send_validation_error("", "Missing command");
         return;
     }
     sscanf(command_tag, "\"command\":\"%63[^\"]\"", command);
     if (request_tag) sscanf(request_tag, "\"requestId\":\"%63[^\"]\"", request_id);
-    handle_command(command, request_id, NULL);
+    if (fingerprint_tag) {
+        unsigned long parsed = 0;
+        if (sscanf(fingerprint_tag, "\"fingerprintId\":%lu", &parsed) == 1) {
+            snprintf(payload, sizeof(payload), "%lu", parsed);
+        }
+    }
+    handle_command(command, request_id, payload[0] ? payload : NULL);
 }
 
 static void websocket_event_handler(void *args, esp_event_base_t base, int32_t event_id, void *event_data)

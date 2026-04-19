@@ -39,6 +39,21 @@ app.post('/api/command', (req, res) => {
   return res.json({ ok: true, requestId });
 });
 
+app.post('/send-delete', (req, res) => {
+  const fingerprintId = Number(req.body.fingerprintId || 0);
+  req.body.command = 'delete_fingerprint';
+  req.body.payload = { fingerprintId };
+  req.url = '/api/command';
+  app._router.handle(req, res);
+});
+
+app.post('/send-wipe', (req, res) => {
+  req.body.command = 'wipe_all_fingerprints';
+  req.body.payload = {};
+  req.url = '/api/command';
+  app._router.handle(req, res);
+});
+
 app.get('/', (_req, res) => {
   const rows = events.map((e) => `<li><strong>${e.ts}</strong> <em>${e.direction}</em><pre>${JSON.stringify(e.data, null, 2)}</pre></li>`).join('');
   res.send(`<!doctype html><html><body><h1>WebSocket test console</h1>
@@ -49,6 +64,14 @@ app.get('/', (_req, res) => {
   <form method="post" action="/send"><input type="hidden" name="command" value="enroll_fingerprint"/><button>Enroll</button></form>
   <form method="post" action="/send"><input type="hidden" name="command" value="identify_fingerprint"/><button>Identify</button></form>
   <form method="post" action="/send"><input type="hidden" name="command" value="healthcheck"/><button>Healthcheck</button></form>
+  <form method="post" action="/send-delete">
+    <label>Delete fingerprint ID</label>
+    <input type="number" name="fingerprintId" min="1" required />
+    <button>Delete ID</button>
+  </form>
+  <form method="post" action="/send-wipe" onsubmit="return confirm('Delete all fingerprints on the device?')">
+    <button>Wipe all fingerprints</button>
+  </form>
   <h2>Events</h2><ul>${rows}</ul></body></html>`);
 });
 

@@ -132,6 +132,11 @@ static esp_err_t render_root_page(httpd_req_t *req, const char *message)
                  "<h2>Demo</h2><form method='POST' action='/demo/register'><button type='submit'>Enroll</button></form><br>"
                  "<form method='POST' action='/demo/checkin'><button type='submit'>Identify</button></form><br>"
                  "<form method='POST' action='/demo/list'><button type='submit'>List IDs</button></form><br>"
+                 "<form method='POST' action='/demo/delete'>"
+                 "<label>Fingerprint ID</label><br><input name='fingerprint_id' type='number' min='1' required><br><br>"
+                 "<button type='submit'>Delete ID</button></form><br>"
+                 "<form method='POST' action='/demo/wipe' onsubmit=\"return confirm('Delete all fingerprints?')\">"
+                 "<button type='submit'>Wipe all fingerprints</button></form><br>"
                  "<h2>Recent Events</h2><ul>%s</ul></body></html>",
                  ip, s_controller->config.device_id, message ? message : "", s_controller->config.websocket_host,
                  s_controller->config.websocket_port, s_controller->config.websocket_path,
@@ -200,12 +205,37 @@ static esp_err_t handle_config_websocket(httpd_req_t *req)
 static esp_err_t handle_demo_register(httpd_req_t *req) { operation_result_t r={0}; bool ok=use_case_register_fingerprint(&s_controller->uc,"web-demo-register",true,&r); add_event(ok?"Enroll ok id=%lu":"Enroll failed",(unsigned long)r.fingerprint_id); return render_root_page(req, ok?"Enroll successful":"Enroll failed"); }
 static esp_err_t handle_demo_checkin(httpd_req_t *req) { uint32_t id=0; bool ok=use_case_check_in_once_with_id(&s_controller->uc,&id); add_event(ok?"Identify ok id=%lu":"Identify failed",(unsigned long)id); return render_root_page(req, ok?"Identify successful":"Identify failed"); }
 static esp_err_t handle_demo_list(httpd_req_t *req) { uint32_t ids[WEBUI_LIST_PREVIEW_MAX]; size_t found=0; bool ok=use_case_list_registered_fingerprints(&s_controller->uc,ids,WEBUI_LIST_PREVIEW_MAX,&found); add_event(ok?"List ok count=%u":"List failed",(unsigned)found); return render_root_page(req, ok?"List completed":"List failed"); }
+static esp_err_t handle_demo_delete(httpd_req_t *req)
+{
+    char body[256] = {0}, copy[256] = {0}, id_str[16] = {0};
+    operation_result_t result = {0};
+    if (!s_controller || read_body(req, body, sizeof(body)) != ESP_OK) return httpd_resp_send_500(req);
+    strlcpy(copy, body, sizeof(copy));
+    form_get_value(copy, "fingerprint_id", id_str, sizeof(id_str));
+    if (!id_str[0]) return render_root_page(req, "Fingerprint ID is required.");
+
+    uint32_t id = (uint32_t)strtoul(id_str, NULL, 10);
+    if (!id) return render_root_page(req, "Fingerprint ID must be > 0.");
+
+    bool ok = use_case_delete_fingerprint(&s_controller->uc, id, "web-demo-delete", &result);
+    add_event(ok ? "Delete ok id=%lu" : "Delete failed id=%lu", (unsigned long)id);
+    return render_root_page(req, ok ? "Delete successful." : "Delete failed.");
+}
+
+static esp_err_t handle_demo_wipe(httpd_req_t *req)
+{
+    operation_result_t result = {0};
+    if (!s_controller) return httpd_resp_send_500(req);
+    bool ok = use_case_wipe_all_fingerprints(&s_controller->uc, "web-demo-wipe", &result);
+    add_event(ok ? "Wipe all ok" : "Wipe all failed");
+    return render_root_page(req, ok ? "Wipe all successful." : "Wipe all failed.");
+}
 
 void webui_server_start(app_controller_t *controller)
 {
     s_controller = controller;
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
-    cfg.stack_size = 16384; cfg.max_uri_handlers = 8;
+    cfg.stack_size = 16384; cfg.max_uri_handlers = 10;
     httpd_handle_t server = NULL;
     if (httpd_start(&server, &cfg) != ESP_OK) return;
 
@@ -215,13 +245,17 @@ void webui_server_start(app_controller_t *controller)
     httpd_uri_t demo_register = {.uri="/demo/register",.method=HTTP_POST,.handler=handle_demo_register};
     httpd_uri_t demo_checkin = {.uri="/demo/checkin",.method=HTTP_POST,.handler=handle_demo_checkin};
     httpd_uri_t demo_list = {.uri="/demo/list",.method=HTTP_POST,.handler=handle_demo_list};
+    httpd_uri_t demo_delete = {.uri="/demo/delete",.method=HTTP_POST,.handler=handle_demo_delete};
+    httpd_uri_t demo_wipe = {.uri="/demo/wipe",.method=HTTP_POST,.handler=handle_demo_wipe};
 
     if (httpd_register_uri_handler(server, &root) != ESP_OK ||
         httpd_register_uri_handler(server, &setup_wifi) != ESP_OK ||
         httpd_register_uri_handler(server, &config_ws) != ESP_OK ||
         httpd_register_uri_handler(server, &demo_register) != ESP_OK ||
         httpd_register_uri_handler(server, &demo_checkin) != ESP_OK ||
-        httpd_register_uri_handler(server, &demo_list) != ESP_OK) {
+        httpd_register_uri_handler(server, &demo_list) != ESP_OK ||
+        httpd_register_uri_handler(server, &demo_delete) != ESP_OK ||
+        httpd_register_uri_handler(server, &demo_wipe) != ESP_OK) {
         httpd_stop(server);
         return;
     }
