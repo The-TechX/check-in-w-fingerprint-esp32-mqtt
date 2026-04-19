@@ -185,3 +185,12 @@ bool use_case_process_pending_queue(use_case_context_t *ctx, size_t max_items_to
 
     return true;
 }
+
+bool use_case_is_sensor_busy(void)
+{
+    if (!sensor_lock(false)) {
+        return true;
+    }
+    sensor_unlock();
+    return false;
+}

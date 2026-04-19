@@ -107,6 +107,11 @@ static void touch_checkin_task(void *arg)
         }
         last_attempt_tick = now;
 
+        if (use_case_is_sensor_busy()) {
+            ESP_LOGI(TAG, "TOUCH ignored: sensor busy (enroll/other op in progress)");
+            continue;
+        }
+
         ESP_LOGI(TAG, "TOUCH detected, running check-in attempt");
         matched = use_case_check_in_once(&controller->uc);
 
